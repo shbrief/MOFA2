@@ -4,15 +4,19 @@
 \alias{load_model}
 \title{Load a trained MOFA}
 \usage{
-load_model(file, sort_factors = TRUE, on_disk = FALSE,
-  load_data = TRUE, load_imputed_data = FALSE,
-  remove_outliers = FALSE, remove_inactive_factors = TRUE,
-  verbose = FALSE)
+load_model(
+  file,
+  sort_factors = TRUE,
+  on_disk = FALSE,
+  load_data = TRUE,
+  load_imputed_data = FALSE,
+  remove_outliers = FALSE,
+  remove_inactive_factors = TRUE,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{file}{an hdf5 file saved by the mofa Python framework}
-
-\item{sort_factors}{logical indicating whether factors should be sorted by variance explained (default is TRUE)}
 
 \item{on_disk}{logical indicating whether to work from memory (FALSE) or disk (TRUE). \cr
 This should be set to TRUE when the training data is so big that cannot fit into memory. \cr

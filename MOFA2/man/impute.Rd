@@ -4,8 +4,13 @@
 \alias{impute}
 \title{Impute missing values from a fitted MOFA}
 \usage{
-impute(object, views = "all", groups = "all", factors = "all",
-  type = c("inRange", "response", "link"), add_intercept = TRUE)
+impute(
+  object,
+  views = "all",
+  groups = "all",
+  factors = "all",
+  add_intercept = TRUE
+)
 }
 \arguments{
 \item{object}{a \code{\link{MOFA}} object.}
@@ -14,9 +19,7 @@ impute(object, views = "all", groups = "all", factors = "all",
 
 \item{groups}{character vector with the group name(s), or numeric vector with group index(es).}
 
-\item{factors}{character vector with the factor names, or numeric vector with the factor index(es).}
-
-\item{type}{type of imputation.
+\item{factors}{character vector with the factor names, or numeric vector with the factor index(es).
 \itemize{
 \item \strong{response}:{gives mean for gaussian and poisson and probabilities for bernoulli.}
 \item \strong{link}: {gives the linear predictions.}

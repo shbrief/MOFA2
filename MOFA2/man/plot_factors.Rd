@@ -4,11 +4,22 @@
 \alias{plot_factors}
 \title{Scatterplots of two factor values}
 \usage{
-plot_factors(object, factors = c(1, 2), groups = "all",
-  show_missing = TRUE, scale = FALSE, color_by = NULL,
-  shape_by = NULL, color_name = NULL, shape_name = NULL,
-  dot_size = 1.5, alpha = 1, legend = TRUE, stroke = NULL,
-  return_data = FALSE)
+plot_factors(
+  object,
+  factors = c(1, 2),
+  groups = "all",
+  show_missing = TRUE,
+  scale = FALSE,
+  color_by = NULL,
+  shape_by = NULL,
+  color_name = NULL,
+  shape_name = NULL,
+  dot_size = 1.5,
+  alpha = 1,
+  legend = TRUE,
+  stroke = NULL,
+  return_data = FALSE
+)
 }
 \arguments{
 \item{object}{a trained \code{\link{MOFA}} object.}
@@ -23,25 +34,25 @@ plot_factors(object, factors = c(1, 2), groups = "all",
 
 \item{color_by}{specifies groups or values used to color the samples. This can be either:
 (1) a character giving the name of a feature present in the training data.
-(2) a character giving the same of a column present in the sample metadata.
-(3) a vector of the same length as the number of samples specifying discrete groups or continuous numeric values.}
+(2) a character giving the name of a column present in the sample metadata.
+(3) a vector of the name length as the number of samples specifying discrete groups or continuous numeric values.}
 
 \item{shape_by}{specifies groups or values used to shape the samples. This can be either:
 (1) a character giving the name of a feature present in the training data, 
-(2) a character giving the same of a column present in the sample metadata.
+(2) a character giving the name of a column present in the sample metadata.
 (3) a vector of the same length as the number of samples specifying discrete groups.}
 
 \item{color_name}{name for color legend.}
 
 \item{shape_name}{name for shape legend.}
 
-\item{dot_size}{numeric indicating dot size.}
+\item{dot_size}{numeric indicating dot size (default is 1.5).}
 
-\item{alpha}{numeric indicating dot transparency.}
+\item{alpha}{numeric indicating dot transparency (default is 1).}
 
 \item{legend}{logical indicating whether to add legend.}
 
-\item{stroke}{numeric indicating the stroke size (the black border around the dots).}
+\item{stroke}{numeric indicating the stroke size (the black border around the dots, default is NULL, infered automatically).}
 
 \item{return_data}{logical indicating whether to return the data frame to plot instead of plotting}
 }

@@ -24,7 +24,7 @@ We consider a dataset where scNMT-seq was used to simultaneously profile RNA exp
 As input to the model we quantified DNA methylation and chromatin accessibility values over different sets of regulatory elements. Here we considered gene promoters and enhancer elements (distal H3K27ac sites). RNA expression was quantified over protein-coding genes. After data processing, separate views were defined for the RNA expression and for each combination of genomic context and epigenetic readout.
 Cells were grouped according to their developmental stage (E5.5, E6.5 and E7.5). For details in the data processing, see the following [github repository](https://github.com/rargelaguet/scnmt_gastrulation)
 
-The data set we use here is a simplified version of the original data set published in (Nature)[https://www.biorxiv.org/content/10.1101/519207v1]. The full data set can be downloaded from [this FTP](ftp://ftp.ebi.ac.uk/pub/databases/scnmt_gastrulation).
+The data set we use here is a simplified version of the original data set published in (Nature)[https://www.nature.com/articles/s41586-019-1825-8]. The full data set can be downloaded from [this FTP](ftp://ftp.ebi.ac.uk/pub/databases/scnmt_gastrulation).
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, fig.align="center")
@@ -41,7 +41,7 @@ library(MOFA2)
 ```
 
 Define cell type colors for the visualisations
-```{r}
+```{r echo = FALSE}
 colors <- c(
   "Epiblast" = "grey70",
   "Mesoderm" = "#CD3278",
@@ -90,7 +90,7 @@ view.colors <- c(
   "Enhancer methylation" = "#F37A71",
   "Promoter methylation" = "#F37A71"
 )
-view.colors = view.colors[views(MOFAmodel)]
+view.colors = view.colors[views_names(MOFAmodel)]
 
 plot_data_overview(MOFAmodel, colors = view.colors)
 ```
@@ -328,7 +328,7 @@ plot_weights(MOFAmodel,
 
 ## Visualisation of DNA methylation patterns
 
-Next step would be to zoom in into those enhancers and characterised them in detail:
+Next step would be to zoom in into those enhancers and characterise them in detail:
 
 ```{r}
 df <- MOFAmodel@samples_metadata[,c("sample","lineage")]
@@ -341,7 +341,7 @@ plot_data_heatmap(MOFAmodel,
   features = 15,
   # extra arguments passed to `pheatmap`
   show_colnames = F, show_rownames = F, 
-  annotation_col = df,  annotation_colors = list("lineage"=colors),
+  annotation_samples = df,  annotation_colors = list("lineage"=colors),
   cluster_cols = F 
 )
 ```

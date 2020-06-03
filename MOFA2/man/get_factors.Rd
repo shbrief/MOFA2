@@ -2,10 +2,15 @@
 % Please edit documentation in R/get_methods.R
 \name{get_factors}
 \alias{get_factors}
-\title{Get fractors}
+\title{Get factors}
 \usage{
-get_factors(object, groups = "all", factors = "all", scale = FALSE,
-  as.data.frame = FALSE)
+get_factors(
+  object,
+  groups = "all",
+  factors = "all",
+  scale = FALSE,
+  as.data.frame = FALSE
+)
 }
 \arguments{
 \item{object}{a trained \code{\link{MOFA}} object.}

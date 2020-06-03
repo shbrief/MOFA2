@@ -9,29 +9,26 @@
 #' @param object a trained \code{\link{MOFA}} object.
 #' @param factors character vector with the factor names, or numeric vector with the indices of the factors to use, or "all" to plot all factors.
 #' @param groups character vector with the groups names, or numeric vector with the indices of the groups of samples to use, or "all" to use samples from all groups.
-#' @param group_by specifies groups used to separate the samples : one plot per group. This can be either: 
+#' @param group_by specifies grouping of samples:
 #' \itemize{
 #' \item (default) the string "group": in this case, the plot will color samples with respect to their predefined groups.
 #' \item a character giving the name of a feature that is present in the input data 
-#' \item a character giving the same of a column in the sample metadata slot
+#' \item a character giving the name of a column in the sample metadata slot
 #' \item a vector of the same length as the number of samples specifying the value for each sample. 
-#' \item a dataframe with two columns: "sample" and "color"
 #'}
-#' @param color_by specifies groups or values (either discrete or continuous) used to color the dots (samples). This can be either: 
+#' @param color_by specifies color of samples. This can be either: 
 #' \itemize{
 #' \item (default) the string "group": in this case, the plot will color the dots with respect to their predefined groups.
 #' \item a character giving the name of a feature that is present in the input data 
-#' \item a character giving the same of a column in the sample metadata slot
+#' \item a character giving the name of a column in the sample metadata slot
 #' \item a vector of the same length as the number of samples specifying the value for each sample. 
-#' \item a dataframe with two columns: "sample" and "color"
 #' }
-#' @param shape_by specifies groups or values (only discrete) used to shape the dots (samples). This can be either: 
+#' @param shape_by specifies shape of samples. This can be either: 
 #' \itemize{
 #' \item (default) the string "group": in this case, the plot will shape the dots with respect to their predefined groups.
 #' \item a character giving the name of a feature that is present in the input data 
-#' \item a character giving the same of a column in the sample metadata slot
+#' \item a character giving the name of a column in the sample metadata slot
 #' \item a vector of the same length as the number of samples specifying the value for each sample. 
-#' \item a dataframe with two columns: "sample" and "shape"
 #' }
 #' @param add_dots logical indicating whether to add dots.
 #' @param dot_size numeric indicating dot size.
@@ -131,19 +128,22 @@ plot_factor <- function(object, factors = 1, groups = "all",
   p <- ggplot(df, aes_string(x="group_by", y="value", fill="color_by", shape="shape_by"))
   
   if (length(factors) == 1) {
-    p <- p + facet_wrap(~group, nrow=1, scales="free_x") +
+    p <- p + facet_wrap(~group_by, nrow=1, scales="free_x") +
       labs(x=group_by, y=as.character(factors))
+    if (length(unique(df$group))==1) p <- p + theme(strip.text = element_blank()) # remove facet title
   } else {
     p <- p + facet_wrap(~factor, nrow=1, scales="free_x") +
       labs(x=group_by, y="Factor value")
+    if (length(unique(df$factor))==1) p <- p + theme(strip.text = element_blank()) # remove facet title
   }
 
   # Add dots
   if (isTRUE(add_dots)) {
     
-    # Dot black border
-    if (is.null(stroke))
-      if (nrow(df)<100) { stroke <- 0.5 } else { stroke <- 0 }
+    # Set stroke
+    if (is.null(stroke)) {
+      stroke <- .select_stroke(N=length(unique(df$sample)))
+    }
     
     if (isTRUE(rasterize)) {
       warning("geom_jitter is not available with rasterise==TRUE. We use instead ggrastr::geom_quasirandom_rast()")
@@ -180,25 +180,31 @@ plot_factor <- function(object, factors = 1, groups = "all",
   # Add theme
   p <- p +
     theme_classic() +
+    geom_hline(yintercept=0, linetype="dashed", size=0.2, alpha=0.5) +
     theme(
         panel.border = element_rect(color="black", size=0.1, fill=NA),
         strip.background = element_rect(colour = "black", size=0.25),
         panel.spacing = unit(0,"lines"),
         # axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
-        axis.text.x = element_text(),
-        axis.text.y = element_text(size=rel(1.0), color="black"),
+        axis.text = element_text(size=rel(0.75), color="black"),
         axis.title.x = element_blank(),
-        axis.title.y = element_text(size=rel(0.9), color="black"),
+        axis.title.y = element_text(size=rel(1.0), color="black"),
         axis.line = element_line(color="black", size=0.25),
-        axis.ticks = element_line(color = "black"),
-        axis.title = element_text(size=rel(1.2)),
+        axis.ticks = element_line(color = "black")
     )
   
   if (length(unique(df$factor))>1) {
-    p <- p + scale_y_continuous(breaks=NULL)
+    # p <- p + scale_y_continuous(breaks=NULL)
   } else {
     # Remove strip labels for groups, they are laballed along X axis
-    p <- p + theme(strip.text.x = element_blank())
+    if (isFALSE(dodge)) {
+      p <- p + theme(strip.text.x = element_blank())
+    }
+  }
+  
+  # If group_by has a single value, remove text
+  if (length(unique(df$group_by))==1) {
+    p <- p + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
   }
   
   # Add legend
@@ -218,11 +224,11 @@ plot_factor <- function(object, factors = 1, groups = "all",
 #' @param scale logical indicating whether to scale factor values.
 #' @param color_by specifies groups or values used to color the samples. This can be either:
 #' (1) a character giving the name of a feature present in the training data.
-#' (2) a character giving the same of a column present in the sample metadata.
-#' (3) a vector of the same length as the number of samples specifying discrete groups or continuous numeric values.
+#' (2) a character giving the name of a column present in the sample metadata.
+#' (3) a vector of the name length as the number of samples specifying discrete groups or continuous numeric values.
 #' @param shape_by specifies groups or values used to shape the samples. This can be either:
 #' (1) a character giving the name of a feature present in the training data, 
-#' (2) a character giving the same of a column present in the sample metadata.
+#' (2) a character giving the name of a column present in the sample metadata.
 #' (3) a vector of the same length as the number of samples specifying discrete groups.
 #' @param color_name name for color legend.
 #' @param shape_name name for shape legend.
@@ -289,7 +295,7 @@ plot_factors <- function(object, factors = c(1, 2), groups = "all",
   
   # Set color and shape
   color_by <- .set_colorby(object, color_by)
-  shape_by <- .set_shapeby(object, shape_by )
+  shape_by <- .set_shapeby(object, shape_by)
   
   # Remove samples with missing values
   Z <- Z[complete.cases(Z),]
@@ -300,7 +306,7 @@ plot_factors <- function(object, factors = c(1, 2), groups = "all",
   df$shape_by <- as.character(df$shape_by)
   
   # Remove missing values
-  if(!show_missing) df <- filter(df, !is.na(color_by) & !is.na(shape_by))
+  if(isFALSE(show_missing)) df <- filter(df, !is.na(color_by) & !is.na(shape_by))
   
   # spread over factors
   df <- spread(df, key="factor", value="value")
@@ -317,21 +323,32 @@ plot_factors <- function(object, factors = c(1, 2), groups = "all",
   if (isTRUE(return_data)) return(df)
   
   # Set stroke
-  if (is.null(stroke)) if (nrow(df)<100) { stroke <- 0.5 } else { stroke <- 0 }
+  if (is.null(stroke)) {
+    stroke <- .select_stroke(N=length(unique(df$sample)))
+  }
   
   # Generate plot
-  p <- ggplot(df, aes_string(x="x", y="y",  fill="color_by", shape="shape_by")) + 
+  p <- ggplot(df, aes_string(x="x", y="y", fill="color_by", shape="shape_by")) + 
     geom_point(size=dot_size, alpha=alpha, stroke = stroke) +
     labs(x=factors[1], y=factors[2]) +
     theme_classic() +
     theme(
-      axis.text = element_text(size = rel(0.9), color = "black"), 
-      axis.title = element_text(size = rel(1.2), color = "black"), 
+      axis.text = element_text(size = rel(0.8), color = "black"), 
+      axis.title = element_text(size = rel(1.1), color = "black"), 
       axis.line = element_line(color = "black", size = 0.5), 
       axis.ticks = element_line(color = "black", size = 0.5)
     )
   
   p <- .add_legend(p, df, legend, color_name, shape_name)
+
+  # Fix legend labels
+  if (!is.null(color_name)) {
+    p <- p + labs(fill = color_name)
+  }
+
+  if (!is.null(shape_name)) {
+    p <- p + labs(shape = shape_name)
+  }
 
   return(p)
 }
@@ -439,8 +456,6 @@ plot_factor_cor <- function(object, method = "pearson", ...) {
   
   # Compute and plot correlation
   r <- abs(cor(x=do.call(rbind, Z), y=do.call(rbind, Z), method=method, use = "complete.obs"))
-  p <- corrplot(r, tl.col = "black", ...)
-  
-  return(r)
+  corrplot(r, tl.col = "black", ...)
 }
 

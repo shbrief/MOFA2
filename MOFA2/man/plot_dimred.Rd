@@ -4,10 +4,23 @@
 \alias{plot_dimred}
 \title{Plot dimensionality reduction based on MOFA factors}
 \usage{
-plot_dimred(object, method = c("UMAP", "TSNE"), groups = "all",
-  show_missing = TRUE, color_by = NULL, shape_by = NULL,
-  color_name = NULL, shape_name = NULL, dot_size = 1.5,
-  alpha_missing = 1, legend = TRUE, return_data = FALSE, ...)
+plot_dimred(
+  object,
+  method = c("UMAP", "TSNE"),
+  groups = "all",
+  show_missing = TRUE,
+  color_by = NULL,
+  shape_by = NULL,
+  color_name = NULL,
+  shape_name = NULL,
+  dot_size = 1.5,
+  stroke = NULL,
+  alpha_missing = 1,
+  legend = TRUE,
+  rasterize = FALSE,
+  return_data = FALSE,
+  ...
+)
 }
 \arguments{
 \item{object}{a trained \code{\link{MOFA}} object.}
@@ -33,6 +46,8 @@ plot_dimred(object, method = c("UMAP", "TSNE"), groups = "all",
 \item{shape_name}{name for shape legend.}
 
 \item{dot_size}{numeric indicating dot size.}
+
+\item{stroke}{numeric indicating the stroke size (the black border around the dots, default is NULL, infered automatically).}
 
 \item{alpha_missing}{numeric indicating dot transparency of missing data.}
 

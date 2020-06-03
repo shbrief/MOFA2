@@ -12,7 +12,10 @@ from mofapy2.core.nodes import *
 # h5py.get_config().track_order = True
 
 class saveModel():
-    def __init__(self, model, outfile, data, intercepts, samples_groups, train_opts, model_opts, features_names, views_names, samples_names, groups_names, compression_level=9):
+    def __init__(self, model, outfile, data, intercepts, samples_groups, 
+        train_opts, model_opts, features_names, views_names, samples_names, groups_names,
+        samples_metadata, features_metadata, 
+        sort_factors=True, compression_level=9):
 
         # Check that the model is trained
         assert model.trained, "Model is not trained"        
@@ -20,6 +23,7 @@ class saveModel():
 
         # Initialise hdf5 file
         self.hdf5 = h5py.File(outfile,'w')
+        self.file = outfile
         self.compression_level = compression_level
 
         # Initialise training data
@@ -45,6 +49,22 @@ class saveModel():
         self.features_names = features_names
         self.groups_names = groups_names
 
+        # Initialise metadata
+        self.samples_metadata = samples_metadata
+        self.features_metadata = features_metadata
+
+        # calculate variance explained 
+        self.r2 = self.model.calculate_variance_explained()
+
+        self.order_factors = self.sort_factors(sort_factors)
+
+    def sort_factors(self, sort_factors):
+        if sort_factors: 
+            order_factors = np.argsort( np.array(self.r2).sum(axis=(0,1)) )[::-1]
+            self.r2 = [x[:,order_factors] for x in self.r2]
+        else:
+            order_factors = self.r2[0].shape[1]
+        return order_factors
 
     def saveNames(self):
         """ Method to save sample and feature names"""
@@ -66,6 +86,51 @@ class saveModel():
         features_grp = self.hdf5.create_group("features")
         for m in range(len(self.data)):
             features_grp.create_dataset(self.views_names[m], data=np.array(self.features_names[m], dtype='S50'))
+
+    def saveMetaData(self):
+        """ Method to save samples and features metadata """
+
+        # Save samples metadata
+        if self.samples_metadata:
+            samples_meta = self.hdf5.create_group("samples_metadata")
+            for g in range(len(self.groups_names)):
+                group_meta = samples_meta.create_group(self.groups_names[g])
+                cols = self.samples_metadata[g].columns
+                # Convert all categorical columns
+                for col in cols[self.samples_metadata[g].dtypes == "category"]:
+                    orig_type = self.samples_metadata[g][col].cat.categories.values.dtype
+                    self.samples_metadata[g][col] = self.samples_metadata[g][col].astype(orig_type)
+
+                for col in cols:
+                    ctype = self.samples_metadata[g][col].dtype
+                    ctype = '|S' if ctype == "object" else ctype.type
+                    group_meta.create_dataset(col, data=np.array(self.samples_metadata[g][col], dtype=ctype))
+                # # Store objects as strings
+                # for col in cols[self.samples_metadata[g].dtypes == "object"]:
+                #     self.samples_metadata[g][col] = self.samples_metadata[g][col].astype("|S")
+                # types = [(cols[i], self.samples_metadata[g][k].dtype.type) for (i, k) in enumerate(cols)]
+                # samples_meta.create_dataset(self.groups_names[g], data=np.array(self.samples_metadata[g]).astype(types), dtype=types)
+
+        # Save features metadata
+        if self.features_metadata:
+            features_meta = self.hdf5.create_group("features_metadata")
+            for m in range(len(self.views_names)):
+                view_meta = features_meta.create_group(self.views_names[m])
+                cols = self.features_metadata[m].columns
+                # Convert all categorical columns
+                for col in cols[self.features_metadata[m].dtypes == "category"]:
+                    orig_type = self.features_metadata[m][col].cat.categories.values.dtype
+                    self.features_metadata[m][col] = self.features_metadata[m][col].astype(orig_type)
+
+                for col in cols:
+                    ctype = self.features_metadata[m][col].dtype
+                    ctype = '|S' if ctype == "object" else ctype.type
+                    # import pdb; pdb.set_trace()
+                    view_meta.create_dataset(col, data=np.array(self.features_metadata[m][col], dtype=ctype))
+                # types = [(cols[i], self.features_metadata[m][k].dtype) for (i, k) in enumerate(cols)]
+                # # Store objects as strings
+                # types = [(col, ctype.type) if ctype != "object" else (col, np.str) for col, ctype in types]
+                # features_meta.create_dataset(self.views_names[m], data=np.array(self.features_metadata[m]).astype(types), dtype=types)
 
     def saveData(self):
         """ Method to save the training data"""
@@ -124,9 +189,11 @@ class saveModel():
             assert set(nodes).issubset(["Z","W","Y","Tau","AlphaW","AlphaZ","ThetaZ","ThetaW"]), "Unrecognised nodes"
         nodes_dic = {x: nodes_dic[x] for x in nodes if x in nodes_dic}
 
-        # Define nodes which special characteristics 
-        # (note that this is ugly and is not proper class-oriented programming)
-        multigroup_nodes = ["Y","Tau","Z"]
+        # Define nodes with special characteristics 
+        # (note that this code is ugly and is not proper class-oriented programming)
+        multigroup_nodes = ["Y", "Tau", "Z"]
+        multigroup_factors_nodes = ["AlphaZ", "ThetaZ"]
+        # multiview_nodes = ["Y","Tau","Alpha","W"]
 
         # Create HDF5 group
         grp = self.hdf5.create_group("expectations")
@@ -140,10 +207,10 @@ class saveModel():
             exp = nodes_dic[n].getExpectation()
 
             # Multi-view nodes
-            if isinstance(nodes_dic[n],Multiview_Node):
+            if isinstance(nodes_dic[n], Multiview_Node):
                 for m in range(nodes_dic[n].M):
 
-                    # Multi-groups nodes (Tau and Y)
+                    # Multi-groups nodes (Tau, Y, and Z)
                     if n in multigroup_nodes:
 
                         # Create subgroup for the view
@@ -161,24 +228,39 @@ class saveModel():
 
                     # Single-groups nodes (W)
                     else:
-                        node_subgrp.create_dataset(self.views_names[m], data=exp[m].T, compression="gzip", compression_opts=self.compression_level)
+                        foo = exp[m].T
+                        node_subgrp.create_dataset(self.views_names[m], data=foo[self.order_factors], compression="gzip", compression_opts=self.compression_level)
 
             # Single-view nodes
             else:
 
-                # Multi-group nodes
+                # Multi-group nodes (Z)
                 if n in multigroup_nodes:
                     for g in self.groups_names:
                         samp_indices = np.where(np.array(self.samples_groups) == g)[0]
-                        node_subgrp.create_dataset(g, data=exp[samp_indices,:].T, compression="gzip", compression_opts=self.compression_level)
+                        foo = exp[samp_indices,:].T
+                        node_subgrp.create_dataset(g, data=foo[self.order_factors], compression="gzip", compression_opts=self.compression_level)
 
-                # Single-group nodes
+                # Multi-group nodes with no samples but only factors (AlphaZ, ThetaZ)
+                elif n in multigroup_factors_nodes:
+                    for gi, g in enumerate(self.groups_names):
+                        foo = exp[gi].T
+                        node_subgrp.create_dataset(g, data=foo[self.order_factors], compression="gzip", compression_opts=self.compression_level)
+
+                # Multi-group nodes with no samples but only factors (AlphaZ, ThetaZ)
+                elif n in multigroup_factors_nodes:
+                    for gi, g in enumerate(self.groups_names):
+                        foo = exp[gi].T
+                        node_subgrp.create_dataset(g, data=foo[self.order_factors], compression="gzip", compression_opts=self.compression_level)
+
+                # Single-group nodes (???)
                 else:
                     node_subgrp.create_dataset("E", data=exp.T, compression="gzip", compression_opts=self.compression_level)
 
         pass
 
     def saveParameters(self, nodes="all"):
+        print("saveParameters() is currently depreciated, TO-DO: sort factors"); exit()
 
         # Get nodes from the model
         nodes_dic = self.model.getNodes()
@@ -310,18 +392,17 @@ class saveModel():
         grp = self.hdf5.create_group("variance_explained")
 
         subgrp = grp.create_group("r2_per_factor")
-        r2 = self.model.calculate_variance_explained()
         for g in range(len(self.groups_names)):
             # subgrp.create_dataset(self.groups_names[g], data=r2[g][order], compression="gzip",
-            subgrp.create_dataset(self.groups_names[g], data=r2[g]*100, compression="gzip",
+            subgrp.create_dataset(self.groups_names[g], data=self.r2[g]*100, compression="gzip",
                                compression_opts=self.compression_level)
 
         # Store total variance explained for each view and group (using all factors)
         subgrp = grp.create_group("r2_total")
-        r2 = self.model.calculate_variance_explained(total=True)
+        r2_total = self.model.calculate_variance_explained(total=True)
         for g in range(len(self.groups_names)):
             # subgrp.create_dataset(self.groups_names[g], data=r2[g][order], compression="gzip",
-            subgrp.create_dataset(self.groups_names[g], data=r2[g]*100, compression="gzip",
+            subgrp.create_dataset(self.groups_names[g], data=r2_total[g]*100, compression="gzip",
                                compression_opts=self.compression_level)
 
     def saveTrainingStats(self):

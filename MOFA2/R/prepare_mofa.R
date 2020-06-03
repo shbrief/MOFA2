@@ -16,7 +16,7 @@
 #' If NULL, default options are used.
 #' @param stochastic_options list of options for stochastic variational inference (see \code{\link{get_default_stochastic_options}} for details). 
 #' If NULL, default options are used.
-#' @param regress_covariates list of length corresponding to the number of views containing covariates as a list per group of cells or in a data frame
+#' @param regress_covariates: this function was confusing and has been depreciated. We encourage you to do batch effect corrections before creating the MOFA object.
 #' @return Returns an untrained \code{\link{MOFA}} with specified options filled in the corresponding slots
 #' @export
 #' @examples
@@ -83,7 +83,8 @@ prepare_mofa <- function(object, data_options = NULL, model_options = NULL, trai
   if (is.null(stochastic_options)) {
     object@stochastic_options <- list()
   } else {
-    stop("stochastic_options have been provided but training_opts$stochastic = FALSE. If you want to use stochastic inference you have to set training_opts$stochastic = TRUE")
+    if (isFALSE(object@training_options[["stochastic"]]))
+      stop("stochastic_options have been provided but training_opts$stochastic is FALSE. If you want to use stochastic inference you have to set training_opts$stochastic = TRUE")
     # object@training_options$stochastic <- TRUE
   }
   
@@ -126,7 +127,11 @@ prepare_mofa <- function(object, data_options = NULL, model_options = NULL, trai
   }
   if (object@model_options$num_factors > 50) warning("The number of factors is very large, training will be slow...")
   # if (!object@model_options$ard_weights) warning("model_options$ard_weights should always be set to TRUE")
-  
+  if (min(object@dimensions$N) < 4 * object@model_options$num_factors) {
+    warning(sprintf("The number of samples in at least one group is very small for learning %s factors.  
+    Try to reduce the number of factors to obtain meaningful results. It should not exceed ~%s.",
+    object@model_options$num_factors, floor(min(object@dimensions$N/4))))
+  }
   # Center the data
   # message("Centering the features (per group, this is a mandatory requirement)...")
   # for (m in views_names(object)) {
@@ -138,8 +143,10 @@ prepare_mofa <- function(object, data_options = NULL, model_options = NULL, trai
   # }
   
   # Regress out covariates
-  if (!is.null(regress_covariates))
-    object <- .regress_covariates(object, regress_covariates)
+  if (!is.null(regress_covariates)) {
+    message("regress_covariates has been depreciated, as it is very confusing to use when you have multiple views and multiple groups. We encourage you to do the corrections (using for example limma) before creating the MOFA object")
+    # object <- .regress_covariates(object, regress_covariates)
+  }
 
   # Transform sparse matrices into dense ones
   # See https://github.com/rstudio/reticulate/issues/72
@@ -165,7 +172,7 @@ prepare_mofa <- function(object, data_options = NULL, model_options = NULL, trai
 #'  Default is 1000. Convergence is assessed using the ELBO statistic.}
 #'  \item{\strong{drop_factor_threshold}:}{ (not functional yet) numeric indicating the threshold on fraction of variance explained to consider a factor inactive and drop it from the model.
 #'  For example, a value of 0.01 implies that factors explaining less than 1\% of variance (in each view) will be dropped.}
-#'  \item{\strong{convergence_mode}:}{ character indicating the convergence criteria, either "slow" (deltaELBO = 5e-6), "medium" (detaELBO = 5e-5) or "fast" (deltaELBO = 5e-4).}
+#'  \item{\strong{convergence_mode}:}{ character indicating the convergence criteria, either "slow", "medium" or "fast", corresponding to 5e-7\%, 5e-6\% or 5e-5\% deltaELBO change w.r.t. to the ELBO at the first iteration. }
 #'  \item{\strong{drop_factor_threshold}:}{ minimum variance explained threshold to drop inactive factors. Default is -1 (no dropping of factors)}
 #'  \item{\strong{verbose}:}{ logical indicating whether to generate a verbose output.}
 #'  \item{\strong{startELBO}:}{ integer indicating the first iteration to compute the ELBO (default is 1). }
@@ -228,7 +235,7 @@ get_default_training_options <- function(object) {
 #' \itemize{
 #'  \item{\strong{scale_views}:}{ logical indicating whether to scale views to have the same unit variance. 
 #'  As long as the scale differences between the views is not too high, this is not required. Default is FALSE.}
-#'  \item{\strong{scale_views}:}{ logical indicating whether to scale groups to have the same unit variance. 
+#'  \item{\strong{scale_groups}:}{ logical indicating whether to scale groups to have the same unit variance. 
 #'  As long as the scale differences between the groups is not too high, this is not required. Default is FALSE.}
 #' }
 #' @return Returns a list with the default data options.
@@ -435,6 +442,10 @@ get_default_model_options <- function(object) {
 #' # Create MOFA object
 #' MOFAmodel <- create_mofa(data)
 #' 
+#' # activate stochastic inference in training options
+#' train_opts <- get_default_training_options(MOFAmodel)
+#' train_opts$stochastic <- TRUE
+#' 
 #' # Load default stochastic options
 #' stochastic_opts <- get_default_stochastic_options(MOFAmodel)
 #' 
@@ -443,7 +454,10 @@ get_default_model_options <- function(object) {
 #' stochastic_opts$batch_size <- 0.25
 #' 
 #' # Prepare the MOFA object
-#' MOFAmodel <- prepare_mofa(MOFAmodel, stochastic_options = stochastic_opts)
+#' MOFAmodel <- prepare_mofa(MOFAmodel, 
+#'   training_options = train_opts,
+#'   stochastic_options = stochastic_opts
+#' )
 #' 
 get_default_stochastic_options <- function(object) {
   

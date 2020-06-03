@@ -26,7 +26,7 @@ get_elbo <- function(object) {
   return(max(object@training_stats$elbo, na.rm=TRUE))
 }
 
-#' @title Get fractors
+#' @title Get factors
 #' @name get_factors
 #' @description Extract the latent factors from the model.
 #' @param object a trained \code{\link{MOFA}} object.
@@ -392,7 +392,7 @@ get_expectations <- function(object, variable, as.data.frame = FALSE) {
     if (variable=="Z") {
       tmp <- reshape2::melt(exp, na.rm=T)
       colnames(tmp) <- c("sample", "factor", "value", "group")
-      
+      tmp$sample <- as.character(tmp$sample)
       factor.cols <- c("sample", "factor", "group")
       factor.cols[factor.cols] <- lapply(factor.cols[factor.cols], factor)
     }

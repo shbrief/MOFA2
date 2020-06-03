@@ -466,7 +466,7 @@ plot_top_weights <- function(object, view = 1, factors = 1,
   # Sanity checks
   if (!is(object, "MOFA")) stop("'object' has to be an instance of MOFA")
   if (nfeatures <= 0) stop("'nfeatures' has to be greater than 0")
-  
+  if (sign=="all") { abs <- TRUE}
   if (is.numeric(view)) view <- views_names(object)[view]
   stopifnot(view %in% views_names(object))
   
@@ -479,8 +479,8 @@ plot_top_weights <- function(object, view = 1, factors = 1,
   # Collect expectations  
   W <- get_weights(object, factors = factors, views = view, as.data.frame=TRUE)
 
-  # Scale values by loading with highest (absolute) value
-  if(scale) W$value <- W$value/max(abs(W$value))
+  # Scale values by weight with highest (absolute) value
+  if (isTRUE(scale)) W$value <- W$value/max(abs(W$value))
 
   # Store sign
   W <- W[W$value!=0,]
@@ -490,7 +490,7 @@ plot_top_weights <- function(object, view = 1, factors = 1,
   if (sign=="positive") { W <- W[W$value>0,] } else if (sign=="negative") { W <- W[W$value<0,] }
 
   # Absolute value
-  if (abs) W$value <- abs(W$value)
+  if (isTRUE(abs)) W$value <- abs(W$value)
   
   # Extract relevant features
   W <- W[with(W, order(-abs(value))), ]
@@ -515,6 +515,7 @@ plot_top_weights <- function(object, view = 1, factors = 1,
     geom_segment(aes_string(xend="feature_id"), size=0.75, yend=0) +
     scale_colour_gradient(low="grey", high="black") +
     coord_flip() +
+    labs(y="Weight") +
 
     # Theme
     theme_bw() +
@@ -543,14 +544,12 @@ plot_top_weights <- function(object, view = 1, factors = 1,
   if (sign=="negative") p <- p + scale_x_discrete(position = "top")
 
   # If absolute values are used, add the corresponding signs to the plot
-  if (abs) p <- p + ylim(0,max(W$value)+0.1) + geom_text(label=W$sign,y=max(W$value)+0.1, size=10)
+  if (isTRUE(abs)) {
+    p <- p + 
+      ylim(0,max(W$value)+0.1) + 
+      geom_text(label=W$sign,y=max(W$value)+0.1, size=10)
+  }
 
-  # if(abs & scale) p <-  p + ylab(paste("(Absolute) loading on Factor", factor))  
-  # else if(abs & !scale) p <- p + ylab(paste("(Absolute) loading on Factor", factor))
-  # else if(!abs & scale) p <- p + ylab(paste("Loading on Factor", factor))
-  # else p <- p + ylab(paste("Loading on Factor", factor))
-  p <- p + ylab(paste("Loading on a factor"))
-  
   return(p)
   
 }

@@ -3,6 +3,8 @@
 ## Functions to visualise the input data ##
 ###########################################
 
+
+
 #' @title Plot heatmap of relevant features
 #' @name plot_data_heatmap
 #' @description Function to plot a heatmap of the data for relevant features, typically the ones with high weights.
@@ -21,6 +23,7 @@
 #' @param imputed logical indicating whether to plot the imputed data instead of the original data. Default is FALSE.
 #' @param denoise logical indicating whether to plot a denoised version of the data reconstructed using the MOFA factors. 
 #' @param max.value numeric indicating the maximum value to display in the heatmap (i.e. the matrix values will be capped at \code{max.value} ).
+#' @param min.value numeric indicating the minimum value to display in the heatmap (i.e. the matrix values will be capped at \code{min.value} ).
 #' See \code{\link{predict}}. Default is FALSE.
 #' @param ... further arguments that can be passed to \code{\link[pheatmap]{pheatmap}}
 #' @details One of the first steps for the annotation of a given factor is to visualise the corresponding weights, 
@@ -33,7 +36,7 @@
 #' @export
 plot_data_heatmap <- function(object, factor, view = 1, groups = "all", features = 50, 
     annotation_features = NULL, annotation_samples = NULL, transpose = FALSE, 
-    imputed = FALSE, denoise = FALSE, max.value = NULL, ...) {
+    imputed = FALSE, denoise = FALSE, max.value = NULL, min.value = NULL, ...) {
   
   # Sanity checks
   if (!is(object, "MOFA")) stop("'object' has to be an instance of MOFA")
@@ -101,7 +104,11 @@ plot_data_heatmap <- function(object, factor, view = 1, groups = "all", features
     
     # Predefined data.frame
     if (is.data.frame(annotation_samples)) {
-      annotation_samples <- annotation_samples[colnames(data),]
+      message("'annotation_samples' provided as a data.frame, please make sure that the rownames match the sample names")
+      if (any(!colnames(data)%in%rownames(annotation_samples))) {
+        stop("There are rownames in annotation_samples that do not correspond to sample names in the model")
+      }
+      annotation_samples <- annotation_samples[colnames(data), , drop = FALSE]
       
     # Extract metadata from the sample metadata  
     } else if (is.character(annotation_samples)) {
@@ -113,12 +120,15 @@ plot_data_heatmap <- function(object, factor, view = 1, groups = "all", features
       tmp <- tmp[order_samples,,drop=F]
       annotation_samples <- tmp[,annotation_samples, drop=F]
       rownames(annotation_samples) <- rownames(tmp)
-      message("Converting annotation_samples columns to factors")
-      annotation_samples[, ] <- lapply(annotation_samples[,,drop=F], as.factor)
     } else {
       stop("Input format for 'annotation_samples' not recognised ")
     }
+    
+    # Convert character columns to factors
+    foo <- sapply(annotation_samples, function(x) is.logical(x)|is.character(x))
+    if (any(foo)) annotation_samples[,which(foo)] <- lapply(annotation_samples[,which(foo),drop=F], as.factor)
   }
+
   
   # Add feature annotations
   if (!is.null(annotation_features)) {
@@ -127,14 +137,20 @@ plot_data_heatmap <- function(object, factor, view = 1, groups = "all", features
   
   # Transpose the data
   if (isTRUE(transpose)) {
-    annotation_samples <- annotation_features
-    annotation_features <- annotation_samples
     data <- t(data)
+    if (!is.null(annotation_samples)) {
+      annotation_features <- annotation_samples
+      annotation_samples <- NULL
+    }
+    if (!is.null(annotation_features)) {
+      annotation_samples <- annotation_features
+      annotation_features <- NULL
+    }
   }
-
-  if (!is.null(max.value)) {
-    data[data>=max.value] <- max.value
-  }
+  
+  # Cap values
+  if (!is.null(max.value)) data[data>=max.value] <- max.value
+  if (!is.null(min.value)) data[data<=min.value] <- min.value
   
   # Plot heatmap
   pheatmap(data, 
@@ -158,7 +174,7 @@ plot_data_heatmap <- function(object, factor, view = 1, groups = "all", features
 #' @param sign can be 'positive', 'negative' or 'all' (default) to show only positive, negative or all weights, respectively.
 #' @param color_by specifies groups or values (either discrete or continuous) used to color the dots (samples). This can be either: 
 #' \itemize{
-#' \item (default) the string "group", it the dots with respect to their predefined groups.
+#' \item the string "group": dots are coloured with respect to their predefined groups.
 #' \item a character giving the name of a feature that is present in the input data 
 #' \item a character giving the same of a column in the sample metadata slot
 #' \item a vector of the same length as the number of samples specifying the value for each sample. 
@@ -166,18 +182,19 @@ plot_data_heatmap <- function(object, factor, view = 1, groups = "all", features
 #' }
 #' @param shape_by specifies groups or values (only discrete) used to shape the dots (samples). This can be either: 
 #' \itemize{
-#' \item (default) the string "group": in this case, the plot will shape the dots with respect to their predefined groups.
+#' \item the string "group": dots are shaped with respect to their predefined groups.
 #' \item a character giving the name of a feature that is present in the input data 
 #' \item a character giving the same of a column in the sample metadata slot
 #' \item a vector of the same length as the number of samples specifying the value for each sample. 
 #' \item a dataframe with two columns: "sample" and "shape"
 #' }
 #' @param legend logical indicating whether to add a legend
-#' @param dot_size numeric indicating dot size (default is 1).
+#' @param dot_size numeric indicating dot size (default is 5).
 #' @param text_size numeric indicating text size (default is 5).
 #' @param stroke numeric indicating the stroke size (the black border around the dots, default is NULL, infered automatically).
 #' @param alpha numeric indicating dot transparency (default is 1).
 #' @param add_lm logical indicating whether to add a linear regression line for each plot
+#' @param lm_per_group logical indicating whether to add a linear regression line separately for each group
 #' @param imputed logical indicating whether to include imputed measurements
 #' @details One of the first steps for the annotation of factors is to visualise the weights using \code{\link{plot_weights}} or \code{\link{plot_top_weights}}.
 #' However, one might also be interested in visualising the direct relationship between features and factors, rather than looking at "abstract" weights. \cr
@@ -188,14 +205,15 @@ plot_data_heatmap <- function(object, factor, view = 1, groups = "all", features
 #' @importFrom utils tail
 #' @importFrom stats quantile
 #' @export
-plot_data_scatter <- function(object, factor, view = 1, groups = "all", features = 10, sign = "all",
-                              color_by = NULL, legend = TRUE, alpha = 1, shape_by = NULL, stroke = NULL,
-                              dot_size = 1, text_size = 5, add_lm = TRUE, imputed = FALSE) {
+plot_data_scatter <- function(object, factor = 1, view = 1, groups = "all", features = 10, sign = "all",
+                              color_by = "group", legend = TRUE, alpha = 1, shape_by = NULL, stroke = NULL,
+                              dot_size = 2.5, text_size = NULL, add_lm = TRUE, lm_per_group = TRUE, imputed = FALSE) {
   
   # Sanity checks
   if (!is(object, "MOFA")) stop("'object' has to be an instance of MOFA")
   stopifnot(length(factor)==1)
   stopifnot(length(view)==1)
+  if (isTRUE(lm_per_group)) add_lm = TRUE
   
   # Define views, factors and groups
   groups <- .check_and_get_groups(object, groups)
@@ -254,28 +272,48 @@ plot_data_scatter <- function(object, factor, view = 1, groups = "all", features
   # Create data frame 
   foo <- list(features); names(foo) <- view
   df2 <- get_data(object, groups = groups, features = foo, as.data.frame = TRUE)
+  df2$sample <- as.character(df2$sample)
   df <- dplyr::left_join(df1, df2, by = "sample")
   
+  # (Q) Remove samples with missing values in Factor values
+  df <- df[!is.na(df$value),]
+  
   # Set stroke
-  if (is.null(stroke)) if (nrow(df)<100) { stroke <- 0.5 } else { stroke <- 0 }
+  if (is.null(stroke)) {
+    stroke <- .select_stroke(N=length(unique(df$sample)))
+  }
+  
+  # Set Pearson text size
+  if (isTRUE(add_lm) & is.null(text_size)) {
+    text_size <- .select_pearson_text_size(N=length(unique(df$feature)))
+  }
+  
+  # Set axis text size
+  axis.text.size <- .select_axis.text.size(N=length(unique(df$feature)))
   
   # Generate plot
-  p <- ggplot(df, aes_string(x = "x", y = "value", fill = "color_by", shape = "shape_by")) + 
-    geom_point(colour="black", size = dot_size, stroke = stroke, alpha = alpha) +
-    # scale_shape_manual(values=c(19,1,2:18)[seq_len(length(unique(shape_by)))]) +
+  p <- ggplot(df, aes_string(x = "x", y = "value")) + 
+    geom_point(aes_string(fill = "color_by", shape = "shape_by"), colour = "black", size = dot_size, stroke = stroke, alpha = alpha) +
     labs(x="Factor values", y="") +
     facet_wrap(~feature, scales="free_y") +
-    theme_classic() + theme(
-      axis.text = element_text(size = rel(1), color = "black"), 
-      axis.title = element_text(size = rel(1.0), color="black"), 
-      legend.key = element_rect(fill = "white")
+    theme_classic() + 
+    theme(
+      axis.text = element_text(size = rel(axis.text.size), color = "black"), 
+      axis.title = element_text(size = rel(1.0), color="black")
     )
 
   # Add linear regression line
   if (isTRUE(add_lm)) {
-    p <- p +
-      stat_smooth(method="lm", color="grey", fill="grey", alpha=0.75) +
-      ggpubr::stat_cor(method = "pearson", label.sep="\n", output.type = "latex", label.y = quantile(df$value,na.rm=TRUE)[[4]], size = text_size, color = "black")
+    if (isTRUE(lm_per_group) & length(groups)>1) {
+      p <- p +
+        stat_smooth(formula=y~x, aes_string(color="group"), method="lm", alpha=0.4) +
+        ggpubr::stat_cor(aes_string(color="group", label = "..r.label.."), method = "pearson", label.sep="\n", output.type = "latex", size = text_size)# +
+        # guides(color = FALSE)
+    } else {
+      p <- p +
+        stat_smooth(formula=y~x, method="lm", color="grey", fill="grey", alpha=0.4) +
+        ggpubr::stat_cor(method = "pearson", label.sep="\n", output.type = "latex", size = text_size, color = "black")
+    }
   }
   
   # Add legend
@@ -337,28 +375,32 @@ plot_data_overview <- function(object, colors = NULL, show_dimensions = TRUE) {
   ovw$group <- object@samples_metadata$group
 
   # Melt to data.frame
-  molten_ovw <- melt(ovw, id.vars = c("sample", "group"), var=c("view"))
-  molten_ovw$sample <- factor(molten_ovw$sample, levels = rownames(ovw))
+  to.plot <- melt(ovw, id.vars = c("sample", "group"), var=c("view"))
+  to.plot$sample <- factor(to.plot$sample, levels = rownames(ovw))
 
-  n <- length(unique(molten_ovw$sample))
+  n <- length(unique(to.plot$sample))
   
   # Add number of samples and features per view/group
-  molten_ovw$combi  <- ifelse(molten_ovw$value, as.character(molten_ovw$view), "missing")
-  if (show_dimensions) {
-    molten_ovw$ntotal <- paste("N=", sapply(data[[1]], function(e) ncol(e))[ as.character(molten_ovw$group) ], sep="")
-    molten_ovw$ptotal <- paste("D=", sapply(data, function(e) nrow(e[[1]]))[ as.character(molten_ovw$view) ], sep="")
-    molten_ovw <- mutate(molten_ovw, view_label = paste(view, ptotal, sep="\n"), group_label = paste(group, ntotal, sep="\n"))
+  to.plot$combi  <- ifelse(to.plot$value, as.character(to.plot$view), "missing")
+  if (isTRUE(show_dimensions)) {
+    to.plot$ntotal <- paste("N=", sapply(data[[1]], function(e) ncol(e))[ as.character(to.plot$group) ], sep="")
+    to.plot$ptotal <- paste("D=", sapply(data, function(e) nrow(e[[1]]))[ as.character(to.plot$view) ], sep="")
+    if (length(unique(to.plot$group))==1) { 
+      to.plot <- mutate(to.plot, view_label = paste(view, ptotal, sep="\n"), group_label = ntotal)
+    } else {
+      to.plot <- mutate(to.plot, view_label = paste(view, ptotal, sep="\n"), group_label = paste(group, ntotal, sep="\n"))
+    }
   } else {
-    molten_ovw <- mutate(molten_ovw, view_label = view, group_label = group)
+    to.plot <- mutate(to.plot, view_label = view, group_label = group)
   }
     
   # Plot
-  p <- ggplot(molten_ovw, aes_string(x="sample", y="view_label", fill="combi")) +
+  p <- ggplot(to.plot, aes_string(x="sample", y="view_label", fill="combi")) +
     geom_tile() +
     scale_fill_manual(values = c("missing"="grey", colors)) +
     # xlab(paste0("Samples (N=", n, ")")) + ylab("") +
     guides(fill = FALSE) + 
-    facet_wrap(~group_label, scales="free_x", nrow=length(unique(molten_ovw$view_label))) +
+    facet_wrap(~group_label, scales="free_x", nrow=length(unique(to.plot$view_label))) +
     theme(
       panel.background = element_rect(fill="white"),
       text = element_text(size=14),
@@ -470,107 +512,24 @@ plot_ascii_data <- function(object, nonzero = FALSE) {
 }
 
 
-# (Hidden) function to define the color
-.set_colorby <- function(object, color_by) {
-  
-  # Option 0: no color
-  if (is.null(color_by)) {
-    color_by <- rep("1",sum(object@dimensions[["N"]]))
-    
-    # Option 1: by default group
-  } else if (color_by[1] == "group") {
-    color_by <- groups_names(object)$group
-    
-    # Option 2: by a feature present in the training data    
-  } else if ((length(color_by) == 1) && is.character(color_by) && (color_by[1] %in% unlist(features_names(object)))) {
-    data <- lapply(get_data(object), function(l) Reduce(cbind, l))
-    features <- lapply(data, rownames)
-    viewidx <- which(sapply(features, function(x) color_by %in% x))
-    color_by <- data[[viewidx]][color_by,]
-    
-    # Option 3: by a metadata column in object@samples$metadata
-  } else if ((length(color_by) == 1) && is.character(color_by) && (color_by[1] %in% colnames(samples_metadata(object)))) {
-    color_by <- samples_metadata(object)[,color_by]
-
-    # Option 4: by a factor value in x@expectations$Z
-  } else if ((length(color_by) == 1) && is.character(color_by) && (color_by[1] %in% colnames(get_factors(object)[[1]]))) {
-    color_by <- do.call(rbind, get_factors(object))[,color_by]
-    
-    # Option 5: input is a data.frame with columns (sample, color)
-  } else if (is(color_by, "data.frame")) {
-    stopifnot(all(colnames(color_by) %in% c("sample", "color")))
-    stopifnot(all(unique(color_by$sample) %in% unlist(samples_names(object))))
-    
-    # Option 6: color_by is a vector of length N
-  } else if (length(color_by) > 1) {
-    stopifnot(length(color_by) == sum(get_dimensions(object)$N))
-    
-    # Option not recognised
-  } else {
-    stop("'color_by' was specified but it was not recognised, please read the documentation")
+# Function to define the axis text size for plot_data_scatter
+.select_axis.text.size <- function(N) {
+  if (N>=4) {
+    return(0.5)
+  } else if (N>=2 & N<4) {
+    return(0.6)
+  } else if (N==1) {
+    return(0.8)
   }
-  
-  # Create data.frame with columns (sample,color)
-  if (!is(color_by,"data.frame")) {
-    df = data.frame(
-      sample = unlist(samples_names(object)),
-      color_by = color_by,
-      stringsAsFactors = FALSE
-    )
-  }
-  if (length(unique(df$color_by)) < 5) df$color_by <- as.factor(df$color_by)
-  
-  return(df)
 }
 
-
-# (Hidden) function to define the shape
-.set_shapeby <- function(object, shape_by) {
-  
-  # Option 0: no color
-  if (is.null(shape_by)) {
-    shape_by <- rep("1",sum(object@dimensions[["N"]]))
-    
-    # Option 1: by default group
-  } else if (shape_by[1] == "group") {
-    shape_by = c()
-    for (group in names(samples_names(object))){
-      shape_by <- c(shape_by,rep(group,length(samples_names(object)[[group]])))
-    }
-    
-    # Option 2: by a feature present in the training data    
-  } else if ((length(shape_by) == 1) && is.character(shape_by) && (shape_by[1] %in% unlist(features_names(object)))) {
-    data <- lapply(get_data(object), function(l) Reduce(cbind, l))
-    features <- lapply(data, rownames)
-    viewidx <- which(sapply(features, function(x) shape_by %in% x))
-    shape_by <- data[[viewidx]][shape_by,]
-    
-    # Option 3: input is a data.frame with columns (sample,color)
-  } else if (is(shape_by,"data.frame")) {
-    stopifnot(all(colnames(shape_by) %in% c("sample","color")))
-    stopifnot(all(unique(shape_by$sample) %in% unlist(samples_names(object))))
-    
-    # Option 4: by a metadata column in object@samples$metadata
-  } else if ((length(shape_by) == 1) && is.character(shape_by) & (shape_by %in% colnames(samples_metadata(object)))) {
-    shape_by <- samples_metadata(object)[,shape_by]
-    
-    # Option 5: shape_by is a vector of length N
-  } else if (length(shape_by) > 1) {
-    stopifnot(length(shape_by) == sum(object@dimensions[["N"]]))
-    
-    # Option not recognised
-  } else {
-    stop("'shape_by' was specified but it was not recognised, please read the documentation")
+# Function to define the text size for the pearson correlation coefficient
+.select_pearson_text_size <- function(N) {
+  if (N>=4) {
+    return(3)
+  } else if (N>=2 & N<4) {
+    return(4)
+  } else if (N==1) {
+    return(5)
   }
-  
-  # Create data.frame with columns (sample,shape)
-  if (!is(shape_by,"data.frame")) {
-    df = data.frame(
-      sample = unlist(samples_names(object)),
-      shape_by = as.factor(shape_by),
-      stringsAsFactors = FALSE
-    )
-  }
-  
-  return(df)
 }

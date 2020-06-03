@@ -118,19 +118,26 @@ return(model)
   
 }
 
-.check_and_get_views <- function(object, views) {
+.check_and_get_views <- function(object, views, non_gaussian=TRUE) {
   stopifnot(!any(duplicated(views)))
   if (is.numeric(views)) {
     stopifnot(all(views <= object@dimensions$M))
-    views_names(object)[views] 
+    views <- views_names(object)[views]
   } else {
     if (paste0(views, sep = "", collapse = "") == "all") { 
-      views_names(object)
+      views <- views_names(object)
     } else {
       stopifnot(all(views %in% views_names(object)))
-      views
     }
   }
+  
+  # Ignore non-gaussian views  
+  if (isFALSE(non_gaussian)) {
+    non_gaussian_views <- names(which(object@model_options$likelihoods!="gaussian"))
+    views <- views[!views%in%non_gaussian_views]
+  }
+  
+  return(views)
 }
 
 
@@ -290,20 +297,18 @@ setReplaceMethod("colnames", signature(x = "matrix_placeholder"),
   } else if (color_by[1] == "group") {
     color_by <- samples_metadata(object)$group
     
-    # Option 2: by a feature present in the training data    
+    # Option 2: by a metadata column in object@samples$metadata
+  } else if ((length(color_by) == 1) && (is.character(color_by)|is.factor(color_by)) & (color_by[1] %in% colnames(samples_metadata(object)))) {
+    color_by <- samples_metadata(object)[,color_by]
+    if (is.character(color_by)) color_by <- as.factor( color_by )
+    
+    # Option 3: by a feature present in the training data    
   } else if ((length(color_by) == 1) && is.character(color_by) && (color_by[1] %in% unlist(features_names(object)))) {
     data <- lapply(get_data(object), function(l) Reduce(cbind, l))
     features <- lapply(data, rownames)
     viewidx <- which(sapply(features, function(x) color_by %in% x))
     color_by <- data[[viewidx]][color_by,]
     
-    # Option 3: by a metadata column in object@samples$metadata
-  # } else if ((length(color_by) == 1) && is.character(color_by) & (color_by[1] %in% colnames(samples_metadata(object)))) {
-  #   color_by <- samples_metadata(object)[,color_by]
-    
-  } else if ((length(color_by) == 1) && (is.character(color_by)|is.factor(color_by)) & (color_by[1] %in% colnames(samples_metadata(object)))) {
-    color_by <- samples_metadata(object)[,color_by]
-    if (is.character(color_by)) color_by <- as.factor( color_by )
     
     # Option 4: by a factor value in object@expectations$Z
   } else if ((length(color_by) == 1) && is.character(color_by) && (color_by[1] %in% colnames(get_factors(object)[[1]]))) {
@@ -351,21 +356,22 @@ setReplaceMethod("colnames", signature(x = "matrix_placeholder"),
       shape_by <- c(shape_by,rep(group,length(samples_names(object)[[group]])))
     }
     
-    # Option 2: by a feature present in the training data    
+    # Option 2: by a metadata column in object@samples$metadata
+  } else if ((length(shape_by) == 1) && is.character(shape_by) & (shape_by %in% colnames(samples_metadata(object)))) {
+    shape_by <- samples_metadata(object)[,shape_by]
+    
+    
+    # Option 3: by a feature present in the training data    
   } else if ((length(shape_by) == 1) && is.character(shape_by) && (shape_by[1] %in% unlist(features_names(object)))) {
     data <- lapply(get_data(object), function(l) Reduce(cbind, l))
     features <- lapply(data, rownames)
     viewidx <- which(sapply(features, function(x) shape_by %in% x))
     shape_by <- data[[viewidx]][shape_by,]
     
-    # Option 3: input is a data.frame with columns (sample,color)
+    # Option 4: input is a data.frame with columns (sample,color)
   } else if (is(shape_by,"data.frame")) {
     stopifnot(all(colnames(shape_by) %in% c("sample","color")))
     stopifnot(all(unique(shape_by$sample) %in% unlist(samples_names(object))))
-    
-    # Option 4: by a metadata column in object@samples$metadata
-  } else if ((length(shape_by) == 1) && is.character(shape_by) & (shape_by %in% colnames(samples_metadata(object)))) {
-    shape_by <- samples_metadata(object)[,shape_by]
     
     # Option 5: shape_by is a vector of length N
   } else if (length(shape_by) > 1) {
@@ -395,14 +401,16 @@ setReplaceMethod("colnames", signature(x = "matrix_placeholder"),
   # Add legend for color
   if (is.numeric(df$color_by)) {
     p <- p + 
-      guides(color=FALSE) +
-      scale_fill_gradientn(colors=colorRampPalette(rev(brewer.pal(n=5, name="RdYlBu")))(10)) 
+      # guides(color=FALSE) +
+      scale_fill_gradientn(colors=colorRampPalette(rev(brewer.pal(n=5, name="RdYlBu")))(10))  +
       # scale_fill_gradientn(colours = c('lightgrey', 'blue'))
+      labs(fill=color_name)
+      
   } else {
     if (length(unique(df$color_by))>1) {
       p <- p +
-        labs(fill=color_name) +
-        guides(fill=guide_legend(override.aes = list(shape = 21)))
+        guides(fill=guide_legend(override.aes = list(shape=21, size=3))) +
+        labs(fill=color_name)
     } else {
       p <- p + guides(fill=FALSE, color=FALSE) +
         scale_color_manual(values="black") +
@@ -414,9 +422,9 @@ setReplaceMethod("colnames", signature(x = "matrix_placeholder"),
   # Add legend for shape
   if (length(unique(df$shape_by))>1) { 
     p <- p + 
-      labs(shape=shape_name) +
       scale_shape_manual(values=c(21,23,24,25)[1:length(unique(df$shape_by))]) +
-      guides(shape = guide_legend(override.aes = list(fill = "black")))
+      guides(shape = guide_legend(override.aes = list(fill = "black"))) +
+      labs(shape=shape_name)
   } else { 
     p <- p + 
       scale_shape_manual(values=c(21)) +
@@ -425,14 +433,30 @@ setReplaceMethod("colnames", signature(x = "matrix_placeholder"),
   
   # Add legend theme
   if (isTRUE(legend)) {
-    p <- p + theme(
-      legend.text = element_text(size=rel(1.2)),
-      legend.title = element_text(size=rel(1.2))
-    )
+    
+    p <- p + 
+      guides(color=guide_legend(override.aes = list(fill="white"))) +
+      theme(
+        legend.text = element_text(size=rel(0.8)),
+        legend.title = element_text(size=rel(0.8)),
+        legend.key = element_rect(fill = "white", color="white")
+        # legend.background = element_rect(color = NA, fill=NA),
+        # legend.box.background = element_blank()
+      )
   } else {
     p <- p + theme(legend.position = "none")
   }
   
   return(p)
-  
+}
+
+# Function to define the stroke for each dot
+.select_stroke <- function(N) {
+  if (N<=1000) { 
+    stroke <- 0.5 
+  } else if (N>1000 & N<=10000) { 
+    stroke <- 0.2
+  } else { 
+    stroke <- 0.05
+  }
 }

@@ -4,12 +4,28 @@
 \alias{plot_factor}
 \title{Beeswarm plot of factor values}
 \usage{
-plot_factor(object, factors = 1, groups = "all", group_by = "group",
-  color_by = "group", shape_by = NULL, add_dots = TRUE,
-  dot_size = 1, dot_alpha = 1, add_violin = FALSE,
-  violin_alpha = 0.5, color_violin = TRUE, show_missing = TRUE,
-  scale = FALSE, dodge = FALSE, color_name = "", shape_name = "",
-  legend = TRUE, rasterize = FALSE)
+plot_factor(
+  object,
+  factors = 1,
+  groups = "all",
+  group_by = "group",
+  color_by = "group",
+  shape_by = NULL,
+  add_dots = TRUE,
+  dot_size = 2,
+  dot_alpha = 1,
+  add_violin = FALSE,
+  violin_alpha = 0.5,
+  color_violin = TRUE,
+  show_missing = TRUE,
+  scale = FALSE,
+  dodge = FALSE,
+  color_name = "",
+  shape_name = "",
+  stroke = NULL,
+  legend = TRUE,
+  rasterize = FALSE
+)
 }
 \arguments{
 \item{object}{a trained \code{\link{MOFA}} object.}
@@ -18,31 +34,28 @@ plot_factor(object, factors = 1, groups = "all", group_by = "group",
 
 \item{groups}{character vector with the groups names, or numeric vector with the indices of the groups of samples to use, or "all" to use samples from all groups.}
 
-\item{group_by}{specifies groups used to separate the samples : one plot per group. This can be either: 
+\item{group_by}{specifies grouping of samples:
 \itemize{
 \item (default) the string "group": in this case, the plot will color samples with respect to their predefined groups.
 \item a character giving the name of a feature that is present in the input data 
-\item a character giving the same of a column in the sample metadata slot
+\item a character giving the name of a column in the sample metadata slot
 \item a vector of the same length as the number of samples specifying the value for each sample. 
-\item a dataframe with two columns: "sample" and "color"
 }}
 
-\item{color_by}{specifies groups or values (either discrete or continuous) used to color the dots (samples). This can be either: 
+\item{color_by}{specifies color of samples. This can be either: 
 \itemize{
 \item (default) the string "group": in this case, the plot will color the dots with respect to their predefined groups.
 \item a character giving the name of a feature that is present in the input data 
-\item a character giving the same of a column in the sample metadata slot
+\item a character giving the name of a column in the sample metadata slot
 \item a vector of the same length as the number of samples specifying the value for each sample. 
-\item a dataframe with two columns: "sample" and "color"
 }}
 
-\item{shape_by}{specifies groups or values (only discrete) used to shape the dots (samples). This can be either: 
+\item{shape_by}{specifies shape of samples. This can be either: 
 \itemize{
 \item (default) the string "group": in this case, the plot will shape the dots with respect to their predefined groups.
 \item a character giving the name of a feature that is present in the input data 
-\item a character giving the same of a column in the sample metadata slot
+\item a character giving the name of a column in the sample metadata slot
 \item a vector of the same length as the number of samples specifying the value for each sample. 
-\item a dataframe with two columns: "sample" and "shape"
 }}
 
 \item{add_dots}{logical indicating whether to add dots.}
@@ -66,6 +79,8 @@ plot_factor(object, factors = 1, groups = "all", group_by = "group",
 \item{color_name}{name for color legend (usually only used if color_by is not a character itself).}
 
 \item{shape_name}{name for shape legend (usually only used if shape_by is not a character itself).}
+
+\item{stroke}{numeric indicating the stroke size (the black border around the dots).}
 
 \item{legend}{logical indicating whether to add a legend to the plot (default is TRUE).}
 
